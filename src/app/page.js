@@ -1,59 +1,41 @@
-"use client";
-import { useState, useContext } from "react";
-import { useRouter } from "next/navigation";
-import { UserContext } from "./context/UserContext";
+// pages/index.js (or wherever your HomePage component is located)
+import HomePageClient from "./HomePageClient";
+import { cookies } from "next/headers";
 
-export default function HomePage() {
-  const { userName, setUserName } = useContext(UserContext);
-  const [nameInput, setNameInput] = useState("");
-  const router = useRouter();
+export default async function HomePage() {
+  const userName = await getUsername();
+  return <HomePageClient userName={userName} />;
+}
 
-  const handleSetName = () => {
-    if (nameInput.trim() === "") {
-      alert("Please enter a valid name.");
-      return;
-    }
-    setUserName(nameInput.trim());
-    setNameInput("");
-  };
+async function getUsername() {
+  // Get cookies from the incoming request
+  const cookieStore = cookies();
+  const sessionCookieName = "connect.sid"; // Replace with your actual session cookie name
+  const sessionCookieValue = cookieStore.get(sessionCookieName)?.value;
 
-  const handleJoinGame = async () => {
-    if (!userName) {
-      alert("Please set your name first.");
-      return;
-    }
+  if (!sessionCookieValue) {
+    // No session cookie found
+    return null;
+  }
 
-    // Call the API route to join a random game
-    const response = await fetch("/api/join-random-game", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userName }),
-    });
+  // Build the cookie header
+  const cookieHeader = `${sessionCookieName}=${sessionCookieValue}`;
 
-    const data = await response.json();
+  // Fetch the userName from the game server
+  const res = await fetch("http://localhost:3001/get-name", {
+    method: "GET",
+    headers: {
+      Cookie: cookieHeader,
+    },
+    cache: "no-store",
+  });
 
-    if (data.success) {
-      // Redirect to the game page
-      router.push("/game");
-    } else {
-      alert("Error joining game.");
-    }
-  };
+  const data = await res.json();
+  console.log(data);
 
-  return (
-    <div>
-      <h1>Welcome to the Chess Game</h1>
-      <div>
-        <input
-          type="text"
-          placeholder="Enter your name"
-          value={nameInput}
-          onChange={(e) => setNameInput(e.target.value)}
-        />
-        <button onClick={handleSetName}>Set Name</button>
-      </div>
-      {userName && <p>Your name: {userName}</p>}
-      <button onClick={handleJoinGame}>Join Random Game</button>
-    </div>
-  );
+  if (data.success && data.userName) {
+    return data.userName;
+  } else {
+    return null;
+  }
 }
